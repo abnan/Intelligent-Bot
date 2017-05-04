@@ -15,6 +15,11 @@ using System.Collections.Generic;
 using System.Web;
 using System.Xml;
 using depolybot;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+using iTextSharp.text.pdf.parser;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace deploybot
 {
@@ -31,9 +36,22 @@ namespace deploybot
             {
                 Activity reply = activity.CreateReply();
                 ConnectorClient connector = new ConnectorClient(new Uri(activity.ServiceUrl));
+                reply = activity.CreateReply("Working on it.");
+                await connector.Conversations.ReplyToActivityAsync(reply);
                 StateClient stateClient = activity.GetStateClient();
                 BotData userData = await stateClient.BotState.GetUserDataAsync(activity.ChannelId, activity.From.Id);
-                var search = findSearchString("tell me about", activity.Text.ToLowerInvariant());
+                string search = null, search1 = null, searchingfor = "";
+                int search2 = 0, next_result = 0;
+                List<string> searchContent = new List<string>();
+                List<string> contentpages = new List<string>();
+                List<string> indexpages = new List<string>();
+
+                if (activity.Text != null)
+                {
+                    search = findSearchString("tell me about", activity.Text.ToLowerInvariant());
+                    search1 = findSearchString("source:", activity.Text.ToLowerInvariant());
+                    search2 = Regex.Matches(activity.Text.ToString(), "more").Count;
+                }
                 if (search != null)
                 {
                     SearchSuggestion searchRes = await GetWikiResultAsync(search);
@@ -73,55 +91,155 @@ namespace deploybot
                             Attachment plAttachment = plCard.ToAttachment();
                             reply.Attachments.Add(plAttachment);
                             userData.SetProperty<string>("URL", url.Value);
+                            userData.SetProperty<string>("ext", "HTML");
                         }
                     }
                 }
-                else
+                else if (activity.Attachments != null && activity.Attachments.Count > 0)
                 {
-                    string url = userData.GetProperty<string>("URL");
-                    HtmlWeb web = new HtmlWeb();
-                    HtmlDocument doc = web.Load(url);
-                    HtmlNodeCollection contents = doc.DocumentNode.SelectNodes("//p");
-                    List<string> searchContent = new List<string>();
-                    int s_index = 0, e_index = 0;
-                    foreach (HtmlNode content in contents)
+                    string url = activity.Attachments[0].ContentUrl;
+                    var client = new WebClient();
+                    Random rnd = new Random();
+                    string filename = rnd.Next(1, 1000).ToString();
+                    client.DownloadFile(url, @"C:\Users\annagpal\Desktop\Machathon\deploybot\Webdata\" + filename + ".pdf");
+                    ProcessStartInfo ProcessInfo;
+                    Process Process;
+
+                    ProcessInfo = new ProcessStartInfo("cmd.exe", "/K " + "pdftohtml.exe " + filename + ".pdf");
+                    ProcessInfo.CreateNoWindow = false;
+                    ProcessInfo.UseShellExecute = false;
+                    ProcessInfo.WorkingDirectory = @"C:\Users\annagpal\Desktop\Machathon\deploybot\Webdata\";
+
+                    Process = Process.Start(ProcessInfo);
+                    userData.SetProperty<string>("ext", "HTMLs");
+                    userData.SetProperty<string>("filename", @"C:\Users\annagpal\Desktop\Machathon\deploybot\Webdata\" + filename + "s.html");
+                    reply = activity.CreateReply("Context set");
+                }
+                else if (search1 != null)
+                {
+                    string url = search1;
+                    var ext = System.IO.Path.GetExtension(url);
+                    if ((ext == null && url.StartsWith("http")) || (ext == ".html") || (ext == ".htm"))
+                        userData.SetProperty<string>("ext", "HTML");
+                    if (ext == ".pdf")
+                        userData.SetProperty<string>("ext", "PDF");
+                    userData.SetProperty<string>("URL", url);
+                    reply = activity.CreateReply("Context set");
+                } 
+                else if ((userData.GetProperty<string>("ext") == "HTML") || (userData.GetProperty<string>("ext") == "HTMLs"))
+                {
+                    if (search2 >0)
                     {
-                        s_index = content.InnerHtml.ToString().IndexOf("<sup");
-                        while (s_index != -1)
+                        string prev = userData.GetProperty<string>("prev");
+                        searchingfor = prev;
+                        next_result = userData.GetProperty<int>("previous_int") +1;
+                    }
+                    if (userData.GetProperty<string>("ext") == "HTML")
+                    {
+                        string url = userData.GetProperty<string>("URL");
+                        HtmlWeb web = new HtmlWeb();
+                        HtmlDocument doc = web.Load(url);
+                        HtmlNodeCollection contents = doc.DocumentNode.SelectNodes("//p");
+                        int s_index = 0, e_index = 0;
+                        foreach (HtmlNode content in contents)
                         {
-                            e_index = content.InnerHtml.ToString().IndexOf("</sup>");
-                            content.InnerHtml = content.InnerHtml.Replace(content.InnerHtml.Substring(s_index, e_index - s_index + 6), "");
                             s_index = content.InnerHtml.ToString().IndexOf("<sup");
+                            while (s_index != -1)
+                            {
+                                e_index = content.InnerHtml.ToString().IndexOf("</sup>");
+                                content.InnerHtml = content.InnerHtml.Replace(content.InnerHtml.Substring(s_index, e_index - s_index + 6), "");
+                                s_index = content.InnerHtml.ToString().IndexOf("<sup");
+                            }
+                            s_index = 0;
                         }
-                        s_index = 0;
+                        for (int i = 0; i < contents.Count; i++)
+                        {
+                            var paraTemp = contents[i].InnerText.Replace("Mr.", "Mr").Replace("Mrs.", "Mrs").Replace("Dr.", "Dr").Replace("St.", "St");
+                            var temp = paraTemp.Split('.').ToList();
+                            searchContent.AddRange(temp);
+                        }
                     }
-                    for (int i = 0; i < contents.Count; i++)
+                    else if (userData.GetProperty<string>("ext") == "HTMLs")
                     {
-                        var paraTemp = contents[i].InnerText.Replace("Mr.", "Mr").Replace("Mrs.", "Mrs").Replace("Dr.","Dr").Replace("St.","St");
-                        var temp = paraTemp.Split('.').ToList();
-                        searchContent.AddRange(temp);
+                        string filename = userData.GetProperty<string>("filename");
+                        HtmlWeb web = new HtmlWeb();
+                        HtmlDocument doc = new HtmlDocument();
+                        doc.Load(filename);
+                        bool skip = false;
+                        string contents = doc.DocumentNode.InnerHtml.ToString();
+                        var pages = Regex.Split(contents, "<a name");
+                        foreach (var page in pages)
+                        {
+                            if (page.Contains("</b><br><b>"))
+                            { }
+                            if (page.Contains("<b>Contents"))
+                            {
+                                contentpages.Add(page);
+                            }
+                            else if (page.Contains("<b>Index</b>"))
+                            {
+                                skip = true;
+                                indexpages.Add(page);
+                            }
+                            else if (skip == true)
+                            {
+                                indexpages.Add(page);
+                            }
+                            else
+                            {
+                                searchContent.AddRange(page.Split('.').ToList());
+                            }
+                        }
                     }
-                    Dictionary<string, int> dict = paraCompare(connector, reply, activity.Text, searchContent);
+                    else
+                    {
+                        string url = userData.GetProperty<string>("URL");
+                        //using (PdfReader reader = new PdfReader(url))
+                        //{
+                        //    for (int i = 1; i <= reader.NumberOfPages; i++)
+                        //    {
+                        //        searchContent.AddRange(PdfTextExtractor.GetTextFromPage(reader, i).ToString().Split('.').ToList());
+                        //    }
+                        //}
+                    }
+                    if (searchingfor == "")
+                        searchingfor = activity.Text;
+                    Dictionary<string, int> dict = paraCompare(connector, reply, searchingfor, searchContent);
                     int numOfResults = 5;
                     var abc = dict.OrderByDescending(x => x.Value).Where(x => x.Value > 0).Take(numOfResults).Select(x => x.Key).ToList();
                     string replymsg = "";
-                    if(abc.Count>0)
+                    if(search2 == 0)
+                        userData.SetProperty<string>("prev", activity.Text);
+                    if (abc.Count > 0)
                     {
-                        for (int i = 0; i < Math.Min(numOfResults, abc.Count); i++)
+                        for (int i = next_result; i < Math.Min(numOfResults, abc.Count); i++)
                         {
-                            replymsg += $"{i + 1}. {HttpUtility.HtmlDecode(abc[i]).ToString()} : **{dict[abc[i]]}**{Environment.NewLine}";
+                            int index = searchContent.IndexOf(abc[i]);
+                            if (Regex.Matches(abc[i], "<b>").Count > 1)
+                                continue;
+                            replymsg = replymsg + "\n" + (i+1).ToString() + ". " + $"{HttpUtility.HtmlDecode(searchContent[index]).ToString()}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index +1]).ToString()}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index + 2]).ToString()}" + "." + $"{Environment.NewLine}";
+                            
+                            userData.SetProperty<int>("previous_int", i);
+                            if (search2 == 0)
+                                break;
                         }
                     }
                     else
                     {
                         replymsg = "No relevant results found!";
                     }
-                    
+
                     //replymsg = $"1. {abc[0]} : **{dict[abc[0]]}**{Environment.NewLine}2. {abc[1]} : **{dict[abc[1]]}**{Environment.NewLine}3. {abc[2]} : **{dict[abc[2]]}**{Environment.NewLine}";
                     reply = activity.CreateReply(replymsg);
-                    
-                }
 
+                    //await stateClient.BotState.SetUserDataAsync(activity.ChannelId, activity.From.Id, userData);
+                    await connector.Conversations.ReplyToActivityAsync(reply);
+
+                    if (search2 == 0)
+                        reply = activity.CreateReply("Was your query answered? Type 'more' to get even more.");
+                    else if (search2 == 1)
+                        reply = activity.CreateReply("Please help us improve our system by telling us which answer you found most helpful.");
+                }
                 await stateClient.BotState.SetUserDataAsync(activity.ChannelId, activity.From.Id, userData);
                 await connector.Conversations.ReplyToActivityAsync(reply);
             }
@@ -140,7 +258,7 @@ namespace deploybot
             }
             else return null;
         }
-        public static int dictionaryCompare(List<string> resSyn, List<string> resHypernym, List<string> resHyponym, string compareTo, Dictionary<string, List<string>> synDict, Dictionary<string, List<string>> hypernymDict, Dictionary<string, List<string>> hyponymDict)
+        public static int dictionaryCompare(List<string> resSyn, List<string> resHypernym, List<string> resHyponym, string compareTo, Dictionary<string, List<string>> synDict, Dictionary<string, List<string>> hypernymDict, Dictionary<string, List<string>> hyponymDict, string activityText)
         {
             compareTo = StopwordTool.RemoveStopwords(compareTo);
             List<string> resSyn2 = new List<string>();
@@ -206,13 +324,21 @@ namespace deploybot
                 if (temp2 != null) resHyponym2.AddRange(temp2);
                 if (temp3 != null) resHypernym2.AddRange(temp3);
             }
+            int retVal = 0;
 
-            int retVal = (resSyn.Intersect(resSyn2).Count() * 20
+            if (Regex.Matches(compareTo, "<b>").Count > 1)
+                retVal = 0;
+            else
+                retVal = (resSyn.Intersect(resSyn2).Count() * 20
                 + resSyn.Intersect(resHyponym2).Count() * 5
                 + resHyponym.Intersect(resSyn2).Count() * 5
                 + resHyponym.Intersect(resHyponym2).Count() * 40
                 + resSyn.Intersect(resHypernym2).Count() * 4
-                + resHypernym.Intersect(resHypernym2).Count() * 1);
+                + resHypernym.Intersect(resHypernym2).Count() * 1
+                + compareTo.Intersect(activityText).Count() * 10);
+
+            if (Regex.Matches(compareTo, "<b>").Count > 1)
+                retVal = retVal * 2;
             return retVal;
         }
 
@@ -288,7 +414,7 @@ namespace deploybot
             Dictionary<string, int> dict = new Dictionary<string, int>();
             foreach (string s in searchContext)
             {
-                int a = dictionaryCompare(resSyn1, resHypernym1, resHyponym1, s, synDict, hypernymDict, hyponymDict);
+                int a = dictionaryCompare(resSyn1, resHypernym1, resHyponym1, s, synDict, hypernymDict, hyponymDict, activityText);
                 dict[s] = a;
             }
             return dict;
@@ -300,7 +426,7 @@ namespace deploybot
 
             using (HttpClient client = new HttpClient())
             {
-                string RequestURI = string.Format("https://en.wikipedia.org/w/api.php?action=opensearch&search={0}&limit=1&namespace=0&format=xml", Query2);
+                string RequestURI = string.Format("https://en.wikipedia.org/w/api.php?action=opensearch&search={0}&limit=2&namespace=0&format=xml", Query2);
                 HttpResponseMessage msg = await client.GetAsync(RequestURI);
 
                 if (msg.IsSuccessStatusCode)

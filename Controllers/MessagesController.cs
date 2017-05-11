@@ -20,6 +20,7 @@ using iTextSharp.text.pdf;
 using iTextSharp.text.pdf.parser;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Word = Microsoft.Office.Interop.Word;
 
 namespace deploybot
 {
@@ -40,7 +41,7 @@ namespace deploybot
                 await connector.Conversations.ReplyToActivityAsync(reply);
                 StateClient stateClient = activity.GetStateClient();
                 BotData userData = await stateClient.BotState.GetUserDataAsync(activity.ChannelId, activity.From.Id);
-                string search = null, search1 = null, searchingfor = "";
+                string search = null, search1 = null, searchingfor = "", search3 = null;
                 int search2 = 0, next_result = 0;
                 List<string> searchContent = new List<string>();
                 List<string> contentpages = new List<string>();
@@ -50,6 +51,7 @@ namespace deploybot
                 {
                     search = findSearchString("tell me about", activity.Text.ToLowerInvariant());
                     search1 = findSearchString("source:", activity.Text.ToLowerInvariant());
+                    search3 = findSearchString("feedback:", activity.Text.ToLowerInvariant());
                     search2 = Regex.Matches(activity.Text.ToString(), "more").Count;
                 }
                 if (search != null)
@@ -101,18 +103,15 @@ namespace deploybot
                     var client = new WebClient();
                     Random rnd = new Random();
                     string filename = rnd.Next(1, 1000).ToString();
-                    client.DownloadFile(url, @"C:\Users\annagpal\Desktop\Machathon\deploybot\Webdata\" + filename + ".pdf");
-                    ProcessStartInfo ProcessInfo;
-                    Process Process;
-
-                    ProcessInfo = new ProcessStartInfo("cmd.exe", "/K " + "pdftohtml.exe " + filename + ".pdf");
-                    ProcessInfo.CreateNoWindow = false;
-                    ProcessInfo.UseShellExecute = false;
-                    ProcessInfo.WorkingDirectory = @"C:\Users\annagpal\Desktop\Machathon\deploybot\Webdata\";
-
-                    Process = Process.Start(ProcessInfo);
+                    var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Webdata\";
+                    client.DownloadFile(url, savepath + filename + ".pdf");
+                    var applicationWord = new Microsoft.Office.Interop.Word.Application();
+                    applicationWord.Visible = false;
+                    Microsoft.Office.Interop.Word._Document doc = applicationWord.Documents.Open(savepath + filename + ".pdf");
+                    doc.SaveAs(savepath + filename + ".html", Word.WdSaveFormat.wdFormatHTML);
+                    doc.Close();
                     userData.SetProperty<string>("ext", "HTMLs");
-                    userData.SetProperty<string>("filename", @"C:\Users\annagpal\Desktop\Machathon\deploybot\Webdata\" + filename + "s.html");
+                    userData.SetProperty<string>("filename", savepath + filename + ".html");
                     reply = activity.CreateReply("Context set");
                 }
                 else if (search1 != null)
@@ -125,7 +124,11 @@ namespace deploybot
                         userData.SetProperty<string>("ext", "PDF");
                     userData.SetProperty<string>("URL", url);
                     reply = activity.CreateReply("Context set");
-                } 
+                }
+                else if (search3 != null)
+                {
+                    reply = activity.CreateReply("Thank you for your feedback");
+                }
                 else if ((userData.GetProperty<string>("ext") == "HTML") || (userData.GetProperty<string>("ext") == "HTMLs"))
                 {
                     if (search2 >0)
@@ -165,30 +168,15 @@ namespace deploybot
                         HtmlWeb web = new HtmlWeb();
                         HtmlDocument doc = new HtmlDocument();
                         doc.Load(filename);
-                        bool skip = false;
-                        string contents = doc.DocumentNode.InnerHtml.ToString();
-                        var pages = Regex.Split(contents, "<a name");
-                        foreach (var page in pages)
+                        HtmlNodeCollection contents = doc.DocumentNode.SelectNodes("//text()");
+                        List<string> newlist = new List<string>();
+                        foreach(var content in contents)
+                            newlist.Add(Regex.Replace(content.InnerText, "<.*?>", String.Empty));
+                        for (int i = 0; i < contents.Count; i++)
                         {
-                            if (page.Contains("</b><br><b>"))
-                            { }
-                            if (page.Contains("<b>Contents"))
-                            {
-                                contentpages.Add(page);
-                            }
-                            else if (page.Contains("<b>Index</b>"))
-                            {
-                                skip = true;
-                                indexpages.Add(page);
-                            }
-                            else if (skip == true)
-                            {
-                                indexpages.Add(page);
-                            }
-                            else
-                            {
-                                searchContent.AddRange(page.Split('.').ToList());
-                            }
+                            var paraTemp = contents[i].InnerText.Replace("Mr.", "Mr").Replace("Mrs.", "Mrs").Replace("Dr.", "Dr").Replace("St.", "St");
+                            var temp = paraTemp.Split('.').ToList();
+                            searchContent.AddRange(temp);
                         }
                     }
                     else
@@ -217,7 +205,7 @@ namespace deploybot
                             int index = searchContent.IndexOf(abc[i]);
                             if (Regex.Matches(abc[i], "<b>").Count > 1)
                                 continue;
-                            replymsg = replymsg + "\n" + (i+1).ToString() + ". " + $"{HttpUtility.HtmlDecode(searchContent[index]).ToString()}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index +1]).ToString()}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index + 2]).ToString()}" + "." + $"{Environment.NewLine}";
+                            replymsg = replymsg + "\n" + (i+1).ToString() + ". " + $"{HttpUtility.HtmlDecode(searchContent[index].ToString())}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index +1].ToString())}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index + 2].ToString())}" + "." + $"{Environment.NewLine}";
                             
                             userData.SetProperty<int>("previous_int", i);
                             if (search2 == 0)

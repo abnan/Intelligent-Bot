@@ -135,13 +135,17 @@ namespace deploybot
                     string filename = rnd.Next(1, 1000).ToString();
                     var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Data\Books\";
                     client.DownloadFile(url, savepath + filename + ".pdf");
-                    var applicationWord = new Microsoft.Office.Interop.Word.Application();
-                    applicationWord.Visible = false;
-                    Microsoft.Office.Interop.Word._Document doc = applicationWord.Documents.Open(savepath + filename + ".pdf");
-                    doc.SaveAs(savepath + filename + ".html", Word.WdSaveFormat.wdFormatHTML);
-                    doc.Close();
+                    ProcessStartInfo ProcessInfo;
+                    Process Process;
+
+                    ProcessInfo = new ProcessStartInfo("cmd.exe", "/K " + "pdftohtml.exe " + filename + ".pdf");
+                    ProcessInfo.CreateNoWindow = false;
+                    ProcessInfo.UseShellExecute = false;
+                    ProcessInfo.WorkingDirectory = savepath;
+
+                    Process = Process.Start(ProcessInfo);
                     userData.SetProperty<string>("ext", "HTMLs");
-                    userData.SetProperty<string>("filename", savepath + filename + ".html");
+                    userData.SetProperty<string>("filename", savepath + filename + "s.html");
                     reply = activity.CreateReply("Context set");
                 }
                 else if (search3 != null)
@@ -189,7 +193,7 @@ namespace deploybot
                         doc.Load(filename);
                         HtmlNodeCollection contents = doc.DocumentNode.SelectNodes("//text()");
                         List<string> newlist = new List<string>();
-                        foreach(var content in contents)
+                        foreach (var content in contents)
                             newlist.Add(Regex.Replace(content.InnerText, "<.*?>", String.Empty));
                         for (int i = 0; i < contents.Count; i++)
                         {

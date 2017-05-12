@@ -21,6 +21,7 @@ using iTextSharp.text.pdf.parser;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Word = Microsoft.Office.Interop.Word;
+using System.Net.Http.Headers;
 
 namespace deploybot
 {
@@ -37,18 +38,9 @@ namespace deploybot
             {
                 Activity reply = activity.CreateReply();
                 ConnectorClient connector = new ConnectorClient(new Uri(activity.ServiceUrl));
-                if (activity.Attachments != null && activity.Attachments.Count > 0)
-                {
-                    string url = activity.Attachments[0].ContentUrl;
-                    var ext = System.IO.Path.GetExtension(url);
-                    if (ext != ".pdf")
-                    {
-                        reply = activity.CreateReply("Sorry, We don't support "+ ext + " Extension");
-                        await connector.Conversations.ReplyToActivityAsync(reply);
-                    }
-                    var response1 = Request.CreateResponse(HttpStatusCode.OK);
-                    return response1;
-                }
+                var attachments = activity?.Attachments?
+                    .Where(attachment => attachment.ContentUrl != null)
+                    .Select(c => Tuple.Create(c.ContentType, c.ContentUrl));
                 reply = activity.CreateReply("Working on it.");
                 await connector.Conversations.ReplyToActivityAsync(reply);
                 StateClient stateClient = activity.GetStateClient();
@@ -114,10 +106,25 @@ namespace deploybot
                     string url = search1;
                     var ext = System.IO.Path.GetExtension(url);
                     if (((ext == null || ext == "") && url.StartsWith("http")) || (ext == ".html") || (ext == ".htm"))
+                    {
+                        userData.SetProperty<string>("URL", url);
                         userData.SetProperty<string>("ext", "HTML");
+                    }
                     if (ext == ".pdf")
-                        userData.SetProperty<string>("ext", "PDF");
-                    userData.SetProperty<string>("URL", url);
+                    {
+                        var client = new WebClient();
+                        Random rnd = new Random();
+                        string filename = rnd.Next(1, 1000).ToString();
+                        var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Data\Books\";
+                        client.DownloadFile(url, savepath + filename + ".pdf");
+                        var applicationWord = new Microsoft.Office.Interop.Word.Application();
+                        applicationWord.Visible = false;
+                        Microsoft.Office.Interop.Word._Document doc = applicationWord.Documents.Open(savepath + filename + ".pdf");
+                        doc.SaveAs(savepath + filename + ".html", Word.WdSaveFormat.wdFormatHTML);
+                        doc.Close();
+                        userData.SetProperty<string>("ext", "HTMLs");
+                        userData.SetProperty<string>("filename", savepath + filename + ".html");
+                    }
                     reply = activity.CreateReply("Context set");
                 }
                 else if (activity.Attachments != null && activity.Attachments.Count > 0)
@@ -250,6 +257,7 @@ namespace deploybot
             var response = Request.CreateResponse(HttpStatusCode.OK);
             return response;
         }
+
         private string findSearchString(string template, string userInput)
         {
             if (userInput.Contains(template))

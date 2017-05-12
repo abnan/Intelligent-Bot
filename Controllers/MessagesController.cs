@@ -97,13 +97,24 @@ namespace deploybot
                         }
                     }
                 }
+                else if (search1 != null)
+                {
+                    string url = search1;
+                    var ext = System.IO.Path.GetExtension(url);
+                    if (((ext == null || ext == "") && url.StartsWith("http")) || (ext == ".html") || (ext == ".htm"))
+                        userData.SetProperty<string>("ext", "HTML");
+                    if (ext == ".pdf")
+                        userData.SetProperty<string>("ext", "PDF");
+                    userData.SetProperty<string>("URL", url);
+                    reply = activity.CreateReply("Context set");
+                }
                 else if (activity.Attachments != null && activity.Attachments.Count > 0)
                 {
                     string url = activity.Attachments[0].ContentUrl;
                     var client = new WebClient();
                     Random rnd = new Random();
                     string filename = rnd.Next(1, 1000).ToString();
-                    var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Webdata\";
+                    var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Data\Books\";
                     client.DownloadFile(url, savepath + filename + ".pdf");
                     var applicationWord = new Microsoft.Office.Interop.Word.Application();
                     applicationWord.Visible = false;
@@ -112,17 +123,6 @@ namespace deploybot
                     doc.Close();
                     userData.SetProperty<string>("ext", "HTMLs");
                     userData.SetProperty<string>("filename", savepath + filename + ".html");
-                    reply = activity.CreateReply("Context set");
-                }
-                else if (search1 != null)
-                {
-                    string url = search1;
-                    var ext = System.IO.Path.GetExtension(url);
-                    if ((ext == null && url.StartsWith("http")) || (ext == ".html") || (ext == ".htm"))
-                        userData.SetProperty<string>("ext", "HTML");
-                    if (ext == ".pdf")
-                        userData.SetProperty<string>("ext", "PDF");
-                    userData.SetProperty<string>("URL", url);
                     reply = activity.CreateReply("Context set");
                 }
                 else if (search3 != null)

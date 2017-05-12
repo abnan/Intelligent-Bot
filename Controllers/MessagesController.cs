@@ -37,6 +37,18 @@ namespace deploybot
             {
                 Activity reply = activity.CreateReply();
                 ConnectorClient connector = new ConnectorClient(new Uri(activity.ServiceUrl));
+                if (activity.Attachments != null && activity.Attachments.Count > 0)
+                {
+                    string url = activity.Attachments[0].ContentUrl;
+                    var ext = System.IO.Path.GetExtension(url);
+                    if (ext != ".pdf")
+                    {
+                        reply = activity.CreateReply("Sorry, We don't support "+ ext + " Extension");
+                        await connector.Conversations.ReplyToActivityAsync(reply);
+                    }
+                    var response1 = Request.CreateResponse(HttpStatusCode.OK);
+                    return response1;
+                }
                 reply = activity.CreateReply("Working on it.");
                 await connector.Conversations.ReplyToActivityAsync(reply);
                 StateClient stateClient = activity.GetStateClient();

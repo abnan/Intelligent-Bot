@@ -102,7 +102,7 @@ namespace deploybot
                 {
                     string url = search1;
                     var ext = System.IO.Path.GetExtension(url);
-                    if (((ext == null || ext == "") && url.StartsWith("http")) || (ext == ".html") || (ext == ".htm"))
+                    if (((ext == null || ext == "") && (url.StartsWith("http") || url.StartsWith("https"))) || (ext == ".html") || (ext == ".htm"))
                     {
                         userData.SetProperty<string>("URL", url);
                         userData.SetProperty<string>("ext", "HTML");
@@ -111,7 +111,7 @@ namespace deploybot
                     {
                         var client = new WebClient();
                         Random rnd = new Random();
-                        string filename = rnd.Next(1, 1000).ToString();
+                        string filename = rnd.Next(1, 50).ToString();
                         var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Data\Books\";
                         client.DownloadFile(url, savepath + filename + ".pdf");
                         ProcessStartInfo ProcessInfo;
@@ -133,7 +133,7 @@ namespace deploybot
                     string url = activity.Attachments[0].ContentUrl;
                     var client = new WebClient();
                     Random rnd = new Random();
-                    string filename = rnd.Next(1, 1000).ToString();
+                    string filename = rnd.Next(1, 50).ToString();
                     var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Data\Books\";
                     client.DownloadFile(url, savepath + filename + ".pdf");
                     ProcessStartInfo ProcessInfo;

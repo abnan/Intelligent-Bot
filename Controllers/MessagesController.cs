@@ -114,13 +114,17 @@ namespace deploybot
                         string filename = rnd.Next(1, 1000).ToString();
                         var savepath = HttpContext.Current.Server.MapPath(".") + @"\..\Data\Books\";
                         client.DownloadFile(url, savepath + filename + ".pdf");
-                        var applicationWord = new Microsoft.Office.Interop.Word.Application();
-                        applicationWord.Visible = false;
-                        Microsoft.Office.Interop.Word._Document doc = applicationWord.Documents.Open(savepath + filename + ".pdf");
-                        doc.SaveAs(savepath + filename + ".html", Word.WdSaveFormat.wdFormatHTML);
-                        doc.Close();
+                        ProcessStartInfo ProcessInfo;
+                        Process Process;
+
+                        ProcessInfo = new ProcessStartInfo("cmd.exe", "/K " + "pdftohtml.exe " + filename + ".pdf");
+                        ProcessInfo.CreateNoWindow = false;
+                        ProcessInfo.UseShellExecute = false;
+                        ProcessInfo.WorkingDirectory = savepath;
+
+                        Process = Process.Start(ProcessInfo);
                         userData.SetProperty<string>("ext", "HTMLs");
-                        userData.SetProperty<string>("filename", savepath + filename + ".html");
+                        userData.SetProperty<string>("filename", savepath + filename + "s.html");
                     }
                     reply = activity.CreateReply("Context set");
                 }
@@ -184,19 +188,48 @@ namespace deploybot
                     }
                     else if (userData.GetProperty<string>("ext") == "HTMLs")
                     {
+                        //string filename = userData.GetProperty<string>("filename");
+                        //HtmlWeb web = new HtmlWeb();
+                        //HtmlDocument doc = new HtmlDocument();
+                        //doc.Load(filename);
+                        //HtmlNodeCollection contents = doc.DocumentNode.SelectNodes("//text()");
+                        //List<string> newlist = new List<string>();
+                        //foreach (var content in contents)
+                        //    newlist.Add(Regex.Replace(content.InnerText, "<.*?>", String.Empty));
+                        //for (int i = 0; i < contents.Count; i++)
+                        //{
+                        //    var paraTemp = contents[i].InnerText.Replace("Mr.", "Mr").Replace("Mrs.", "Mrs").Replace("Dr.", "Dr").Replace("St.", "St");
+                        //    var temp = paraTemp.Split('.').ToList();
+                        //    searchContent.AddRange(temp);
+                        //}
                         string filename = userData.GetProperty<string>("filename");
                         HtmlWeb web = new HtmlWeb();
                         HtmlDocument doc = new HtmlDocument();
                         doc.Load(filename);
-                        HtmlNodeCollection contents = doc.DocumentNode.SelectNodes("//text()");
-                        List<string> newlist = new List<string>();
-                        foreach (var content in contents)
-                            newlist.Add(Regex.Replace(content.InnerText, "<.*?>", String.Empty));
-                        for (int i = 0; i < contents.Count; i++)
+                        bool skip = false;
+                        string contents = doc.DocumentNode.InnerHtml.ToString();
+                        var pages = Regex.Split(contents, "<a name");
+                        foreach (var page in pages)
                         {
-                            var paraTemp = contents[i].InnerText.Replace("Mr.", "Mr").Replace("Mrs.", "Mrs").Replace("Dr.", "Dr").Replace("St.", "St");
-                            var temp = paraTemp.Split('.').ToList();
-                            searchContent.AddRange(temp);
+                            if (page.Contains("</b><br><b>"))
+                            { }
+                            if (page.Contains("<b>Contents"))
+                            {
+                                contentpages.Add(page);
+                            }
+                            else if (page.Contains("<b>Index</b>"))
+                            {
+                                skip = true;
+                                indexpages.Add(page);
+                            }
+                            else if (skip == true)
+                            {
+                                indexpages.Add(page);
+                            }
+                            else
+                            {
+                                searchContent.AddRange(page.Split('.').ToList());
+                            }
                         }
                     }
                     else

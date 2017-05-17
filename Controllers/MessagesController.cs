@@ -51,7 +51,7 @@ namespace deploybot
                 if (activity.Text != null)
                 {
                     search = findSearchString("tell me about", activity.Text.ToLowerInvariant());
-                    search1 = findSearchString("source:", activity.Text.ToLowerInvariant());
+                    search1 = findSearchString("source:", activity.Text);
                     search3 = findSearchString("feedback:", activity.Text.ToLowerInvariant());
                     search2 = Regex.Matches(activity.Text.ToString(), "more").Count;
                 }

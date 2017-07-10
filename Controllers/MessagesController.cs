@@ -43,7 +43,6 @@ namespace deploybot
                 StateClient stateClient = activity.GetStateClient();
                 BotData userData = await stateClient.BotState.GetUserDataAsync(activity.ChannelId, activity.From.Id);
                 string search = null, search1 = null, searchingfor = "", search3 = null;
-                int search2 = 0, next_result = 0;
                 List<string> searchContent = new List<string>();
                 List<string> contentpages = new List<string>();
                 List<string> indexpages = new List<string>();
@@ -53,7 +52,6 @@ namespace deploybot
                     search = findSearchString("tell me about", activity.Text.ToLowerInvariant());
                     search1 = findSearchString("source:", activity.Text);
                     search3 = findSearchString("feedback:", activity.Text.ToLowerInvariant());
-                    search2 = Regex.Matches(activity.Text.ToString(), "more").Count;
                 }
                 if (search != null)
                 {
@@ -155,12 +153,6 @@ namespace deploybot
                 }
                 else if ((userData.GetProperty<string>("ext") == "HTML") || (userData.GetProperty<string>("ext") == "HTMLs"))
                 {
-                    if (search2 >0)
-                    {
-                        string prev = userData.GetProperty<string>("prev");
-                        searchingfor = prev;
-                        next_result = userData.GetProperty<int>("previous_int") +1;
-                    }
                     if (userData.GetProperty<string>("ext") == "HTML")
                     {
                         string url = userData.GetProperty<string>("URL");
@@ -249,20 +241,14 @@ namespace deploybot
                     int numOfResults = 5;
                     var abc = dict.OrderByDescending(x => x.Value).Where(x => x.Value > 0).Take(numOfResults).Select(x => x.Key).ToList();
                     string replymsg = "";
-                    if(search2 == 0)
-                        userData.SetProperty<string>("prev", activity.Text);
                     if (abc.Count > 0)
                     {
-                        for (int i = next_result; i < Math.Min(numOfResults, abc.Count); i++)
+                        for (int i = 0; i < Math.Min(numOfResults, abc.Count); i++)
                         {
                             int index = searchContent.IndexOf(abc[i]);
                             if (Regex.Matches(abc[i], "<b>").Count > 1)
                                 continue;
                             replymsg = replymsg + "\n" + (i+1).ToString() + ". " + $"{HttpUtility.HtmlDecode(searchContent[index].ToString())}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index +1].ToString())}" + "." + $"{HttpUtility.HtmlDecode(searchContent[index + 2].ToString())}" + "." + $"{Environment.NewLine}";
-                            
-                            userData.SetProperty<int>("previous_int", i);
-                            if (search2 == 0)
-                                break;
                         }
                     }
                     else
@@ -274,12 +260,6 @@ namespace deploybot
                     reply = activity.CreateReply(replymsg);
 
                     //await stateClient.BotState.SetUserDataAsync(activity.ChannelId, activity.From.Id, userData);
-                    await connector.Conversations.ReplyToActivityAsync(reply);
-
-                    if (search2 == 0)
-                        reply = activity.CreateReply("Was your query answered? Type 'more' to get even more.");
-                    else if (search2 == 1)
-                        reply = activity.CreateReply("Please help us improve our system by telling us which answer you found most helpful.");
                 }
                 await stateClient.BotState.SetUserDataAsync(activity.ChannelId, activity.From.Id, userData);
                 await connector.Conversations.ReplyToActivityAsync(reply);

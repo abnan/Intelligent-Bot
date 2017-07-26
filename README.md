@@ -5,6 +5,7 @@ Please drop me a mail in case channel is down, it's hosted on my free Azure subs
 
 ### Working scenarios
 > Note: Relevant answers are highlighted for documentation purposes. They won't appear in Teams; Top 5 results are shown.
+
 For querying Wikipedia, use this template to set the context "tell me about XYZ". Continue asking questions once context is set.
 ![Querying Wikipedia](../master/Data/1.png)
 To query a webpage, mention url as "source: https://www.microsoft.com/en-us/software-download/faq" Works particularly well with FAQ, Q&A pages.

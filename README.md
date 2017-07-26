@@ -1,7 +1,7 @@
 # Intelligent-Bot
 A bot which uses WordNet to parse and match results from a given source to answer questions. Also weighs context in reference to tags in structured documents for instance bold tags, headers, etc. Also retains context of question subject so you continue asking questions on the same topic.
 
-<a href="https://teams.microsoft.com/l/chat/0/0?users=28:d54d718d-8ebf-4fa4-b34a-c445cadd7bbb">Microsoft Teams</a> link for the bot
+<a href="https://teams.microsoft.com/l/chat/0/0?users=28:d54d718d-8ebf-4fa4-b34a-c445cadd7bbb">Microsoft Teams</a> link for the bot.
 Please drop me a mail in case channel is down, it's hosted on my free Azure subscription which has limited usage.
 
 ### Working scenarios
